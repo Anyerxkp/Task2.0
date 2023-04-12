@@ -1,59 +1,98 @@
 const chai = require('chai');
 const chaiHttp = require('chai-http');
-const app = require('./index'); // Replace './app' with the path to your app file
+const app = require('./index'); // Assuming your main file is named 'index.js'
+
+const { expect } = chai;
 
 chai.use(chaiHttp);
-chai.should();
 
-describe("Todos", () => {
-  describe("GET /todos", () => {
-    it("should get all todos", (done) => {
-      chai.request(app)
-        .get('/todos')
-        .end((err, res) => {
-          res.should.have.status(200);
-          res.body.should.be.a('array');
-          done();
-        });
-    });
+describe('Todo API', () => {
+  let createdTodoId;
+
+  it('should get all todos', (done) => {
+    chai.request(app)
+      .get('/todos')
+      .end((err, res) => {
+        expect(res).to.have.status(200);
+        expect(res.body).to.be.an('array');
+        done();
+      });
   });
 
-  // Add tests for POST, PUT, and DELETE here
-  describe("POST /todos", () => {
-    it("should return an error if title or description is missing", (done) => {
-      const newTodo = { title: "", description: "A description without a title" };
+  it('should create a new todo', (done) => {
+    const todo = {
+      title: 'Test Todo',
+      description: 'This is a test todo',
+    };
 
-      chai.request(app)
-        .post('/todos')
-        .send(newTodo)
-        .end((err, res) => {
-          res.should.have.status(400);
-          res.body.should.be.a('object');
-          res.body.errors.should.be.a('array');
-          res.body.errors[0].should.have.property('msg', 'Title is required');
-          done();
-        });
-    });
+    chai.request(app)
+      .post('/todos')
+      .send(todo)
+      .end((err, res) => {
+        expect(res).to.have.status(201);
+        expect(res.body).to.be.an('object');
+        expect(res.body).to.have.property('title').eql(todo.title);
+        expect(res.body).to.have.property('description').eql(todo.description);
+        createdTodoId = res.body._id; // Store the created todo ID
+        done();
+      });
   });
 
-  // PUT (update) a todo by ID with validation checks
-  describe("PUT /todos/:id", () => {
-    it("should return an error if completed is not a boolean", (done) => {
-      const updatedTodo = { title: "Updated title", description: "Updated description", completed: "invalid" };
+  it('should update a todo by id', (done) => {
+    const updatedTodo = {
+      title: 'Updated Test Todo',
+      description: 'This is an updated test todo',
+      completed: true,
+    };
 
-      // You need to create a todo and get its ID before this test
-      const id = "your_todo_id_here"; // Replace with the ID of an existing todo
-
-      chai.request(app)
-        .put(`/todos/${id}`)
-        .send(updatedTodo)
-        .end((err, res) => {
-          res.should.have.status(400);
-          res.body.should.be.a('object');
-          res.body.errors.should.be.a('array');
-          res.body.errors[0].should.have.property('msg', 'Completed must be a boolean value');
-          done();
-        });
-    });
+    chai.request(app)
+      .put(`/todos/${createdTodoId}`)
+      .send(updatedTodo)
+      .end((err, res) => {
+        expect(res).to.have.status(200);
+        expect(res.body).to.be.an('object');
+        expect(res.body).to.have.property('title').eql(updatedTodo.title);
+        expect(res.body).to.have.property('description').eql(updatedTodo.description);
+        expect(res.body).to.have.property('completed').eql(updatedTodo.completed);
+        done();
+      });
   });
+
+  it('should delete a todo by id', (done) => {
+    chai.request(app)
+      .delete(`/todos/${createdTodoId}`)
+      .end((err, res) => {
+        expect(res).to.have.status(204);
+        done();
+      });
+  });
+
+  it('should return a 404 when trying to update a non-existent todo', (done) => {
+    const updatedTodo = {
+      title: 'Updated Test Todo',
+      description: 'This is an updated test todo',
+      completed: true,
+    };
+
+    chai.request(app)
+      .put('/todos/non_existent_id')
+      .send(updatedTodo)
+      .end((err, res) => {
+        expect(res).to.have.status(404);
+        expect(res.body).to.have.property('error').eql('Todo not found');
+        done();
+      });
+  });
+
+  it('should return a 404 when trying to delete a non-existent todo', (done) => {
+    chai.request(app)
+      .delete('/todos/non_existent_id')
+      .end((err, res) => {
+        expect(res).to.have.status(404);
+        expect(res.body).to.have.property('error').eql('Todo not found');
+        done();
+      });
+  });
+
 });
+
